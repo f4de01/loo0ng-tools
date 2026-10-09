@@ -1,0 +1,4 @@
+#!/bin/sh
+# 隐私钩子 shim：扫 commit message；装法见根 README「开发」一节（git config core.hooksPath .githooks）。
+command -v python3 >/dev/null 2>&1 && exec python3 scripts/privacy-check.py --commit-msg "$1"
+exec python scripts/privacy-check.py --commit-msg "$1"
