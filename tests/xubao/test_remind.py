@@ -1,6 +1,6 @@
-"""skills/preservation-reminder/scripts/remind.py 的测试（unittest，标准库零依赖）。
+"""skills/xubao/scripts/remind.py 的测试（unittest，标准库零依赖）。
 
-运行：python -m unittest discover -s tests/preservation-reminder -p "test_*.py"
+运行：python -m unittest discover -s tests/xubao -p "test_*.py"
 
 案号由碎片拼出：本文件自己也要过隐私钩子。
 """
@@ -14,7 +14,7 @@ import tempfile
 import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-SCRIPT = REPO / "skills" / "preservation-reminder" / "scripts" / "remind.py"
+SCRIPT = REPO / "skills" / "xubao" / "scripts" / "remind.py"
 
 
 def load_module():

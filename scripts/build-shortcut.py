@@ -9,7 +9,7 @@ iOS 15 起导入不了，要在 Mac 上用系统自带的 shortcuts sign 签一�
 （按 User-Agent 放行），这里借用 Cherri 的标识，是开发者知情后的决定；发过去的只有动作逻辑，不含案件信息。
 
 动作参数照 Apple ToolKit 导出的参数表与公开的快捷指令样本写，Apple 没有文档；改了要在真机上走一遍
-docs/快捷指令搭建.md 的「试跑」。逻辑与导入文本格式以 skills/preservation-reminder/FORMAT.md 为准：
+docs/快捷指令搭建.md 的「试跑」。逻辑与导入文本格式以 skills/xubao/FORMAT.md 为准：
 
   1. 读剪贴板，取词典；取不到 format 就提示「剪贴板里不是导入文本」，不是 1 就提示「请更新快捷指令」。
   2. 找出标题以「续保｜」开头的全部提醒，逐条读备注最后一行的识别码：

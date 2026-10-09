@@ -1,4 +1,4 @@
-"""生成 preservation-reminder 的合成测试件：一份虚构的财产保全告知书，文字版与扫描版各一。
+"""生成 xubao 的合成测试件：一份虚构的财产保全告知书，文字版与扫描版各一。
 
 开发机一次性脚本，要 PyMuPDF（pip install pymupdf）；生成的两份 PDF 入库，测试只读它们、只用标准库。
 内容全部虚构，不取材于任何真件。案号在运行时由碎片拼出：本文件自己也要过隐私钩子。
@@ -6,7 +6,7 @@
   文字版：嵌开源字体 Droid Sans Fallback 的子集，Type0 / Identity-H + ToUnicode，压缩流，真实文书最常见的形状。
   扫描版：把文字版第一页按 150 dpi 渲染成灰度 JPEG，包成只有一张图的 PDF（DCTDecode），没有文字层。
 
-运行：python tests/preservation-reminder/fixtures/make_fixtures.py
+运行：python tests/xubao/fixtures/make_fixtures.py
 """
 import pathlib
 

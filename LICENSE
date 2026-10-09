@@ -26,9 +26,9 @@ SOFTWARE.
 
 上面的 MIT 许可覆盖本仓库自己的作品：skill 正文、脚本、文档与测试。
 
-`tests/preservation-reminder/fixtures/` 下两份合成测试 PDF 里嵌有 Droid Sans Fallback 字体的子集，该字体依 Apache License 2.0 授权，不是本仓库的作品，不在上面这份 MIT 许可的覆盖范围内。
+`tests/xubao/fixtures/` 下两份合成测试 PDF 里嵌有 Droid Sans Fallback 字体的子集，该字体依 Apache License 2.0 授权，不是本仓库的作品，不在上面这份 MIT 许可的覆盖范围内。
 
 The MIT license above covers this repository's own work only. The synthetic
-test PDFs under `tests/preservation-reminder/fixtures/` embed a subset of the
+test PDFs under `tests/xubao/fixtures/` embed a subset of the
 Droid Sans Fallback font, which is licensed under the Apache License 2.0 and is
 not covered by the terms above.

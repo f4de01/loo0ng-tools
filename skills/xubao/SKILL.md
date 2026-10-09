@@ -1,6 +1,6 @@
 ---
-name: preservation-reminder
-description: "续保提醒，只在律师点名时用（Codex 写 $preservation-reminder，Claude Code 输 /preservation-reminder）。读律师给的保全告知书、保全或执行裁定书、协助执行回执等 PDF，认出每项被冻结、查封、扣押的财产，记进同目录的保全底账 保全期限.md，按申请截止日（届满日前七日，法院要求更早的取更早）倒推提醒时点，给出一段导入文本，律师复制到 iPhone 由快捷指令建进提醒事项；底账改过了要重导也走它。不写续保申请书。"
+name: xubao
+description: "续保提醒：读保全告知书、裁定书等 PDF，算出续保申请截止日，生成导入 iPhone 提醒事项的文本。"
 disable-model-invocation: true
 ---
 

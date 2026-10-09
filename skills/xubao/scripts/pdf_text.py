@@ -924,7 +924,7 @@ class ImageDir:
                 os.makedirs(self.given, exist_ok=True)
                 self.path = self.given
             else:
-                self.path = tempfile.mkdtemp(prefix="preservation-reminder-")
+                self.path = tempfile.mkdtemp(prefix="xubao-")
         return self.path
 
 

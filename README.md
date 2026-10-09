@@ -6,7 +6,7 @@
 
 | skill | 做什么 |
 | --- | --- |
-| [preservation-reminder](skills/preservation-reminder/SKILL.md) | 续保提醒：读保全告知书、裁定书等 PDF，认出每项被冻结、查封、扣押的财产，记进同目录的保全底账 `保全期限.md`，按申请截止日（届满日前七日，法院要求更早的取更早）倒推提醒时点，给出一段导入文本，到 iPhone 上由快捷指令建进提醒事项 |
+| [xubao](skills/xubao/SKILL.md) | 续保提醒：读保全告知书、裁定书等 PDF，把每项财产的保全期限记进同目录的 `保全期限.md`，算出续保申请截止日（届满七日前，法院要求更早的取更早），生成导入 iPhone 提醒事项的文本 |
 
 ## 安装
 
@@ -18,9 +18,9 @@ npx skills@latest add f4de01/loo0ng-tools -a codex
 
 用 Claude Code 就把 `-a codex` 换成 `-a claude-code`。机器上要有 Python 3.9 以上，不用另装任何包。
 
-本仓的 skill 只在点名时调用，不会被一句相近的话自动带起：Codex 里写 `$preservation-reminder`（或用 `/skills` 挑），Claude Code 里输 `/preservation-reminder`，后面接上要它做的事和 PDF。
+本仓的 skill 只在点名时调用，不会被一句相近的话自动带起：Codex 里写 `$xubao`（或用 `/skills` 挑），Claude Code 里输 `/xubao`，后面接上要它做的事和 PDF。
 
-**续保提醒还要在 iPhone 上装一次快捷指令「续保导入」**：在 iPhone 上打开 <https://www.icloud.com/shortcuts/63139aa1630e4e98b3f912ffc40d20c4>，点「添加快捷指令」。每次怎么导入见 [导入手机.md](skills/preservation-reminder/导入手机.md)；快捷指令怎么生成、改了怎么重发见 [docs/快捷指令搭建.md](docs/快捷指令搭建.md)。
+**续保提醒还要在 iPhone 上装一次快捷指令「续保导入」**：在 iPhone 上打开 <https://www.icloud.com/shortcuts/63139aa1630e4e98b3f912ffc40d20c4>，点「添加快捷指令」。每次怎么导入见 [导入手机.md](skills/xubao/导入手机.md)；快捷指令怎么生成、改了怎么重发见 [docs/快捷指令搭建.md](docs/快捷指令搭建.md)。
 
 ## 开发
 
@@ -37,13 +37,13 @@ python scripts/privacy-check.py --all     # 全仓基线
 
 ```bash
 bash scripts/check-text.sh .
-python -m unittest discover -s tests/preservation-reminder -p "test_*.py"
+python -m unittest discover -s tests/xubao -p "test_*.py"
 python -m unittest discover -s tests/skills -p "test_*.py"
 python -m unittest discover -s tests/privacy-check -p "test_*.py"
 python -m unittest discover -s tests/check-text -p "test_*.py"
 ```
 
-测试只用合成件。`tests/preservation-reminder/fixtures/` 里的两份假告知书（文字版、扫描版）由同目录的 `make_fixtures.py` 生成，那个脚本要 PyMuPDF，只在开发机上跑；测试本身只用标准库。
+测试只用合成件。`tests/xubao/fixtures/` 里的两份假告知书（文字版、扫描版）由同目录的 `make_fixtures.py` 生成，那个脚本要 PyMuPDF，只在开发机上跑；测试本身只用标准库。
 
 ## 许可
 

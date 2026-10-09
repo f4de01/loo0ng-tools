@@ -1,6 +1,6 @@
-"""skills/preservation-reminder/scripts/pdf_text.py 的测试（unittest，标准库零依赖）。
+"""skills/xubao/scripts/pdf_text.py 的测试（unittest，标准库零依赖）。
 
-运行：python -m unittest discover -s tests/preservation-reminder -p "test_*.py"
+运行：python -m unittest discover -s tests/xubao -p "test_*.py"
 
 两份合成件（fixtures/，由 fixtures/make_fixtures.py 生成）走真实形状；别的分支用下面现拼的小 PDF。
 案号由碎片拼出：本文件自己也要过隐私钩子。
@@ -13,7 +13,7 @@ import unittest
 import zlib
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-SCRIPT = REPO / "skills" / "preservation-reminder" / "scripts" / "pdf_text.py"
+SCRIPT = REPO / "skills" / "xubao" / "scripts" / "pdf_text.py"
 FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures"
 
 
