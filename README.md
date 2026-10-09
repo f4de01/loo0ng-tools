@@ -18,7 +18,7 @@ npx skills@latest add f4de01/loo0ng-tools -a codex
 
 用 Claude Code 就把 `-a codex` 换成 `-a claude-code`。机器上要有 Python 3.9 以上，不用另装任何包。
 
-**续保提醒还要在 iPhone 上装一次快捷指令「续保导入」**：安装链接尚未发布，搭建步骤见 [docs/快捷指令搭建.md](docs/快捷指令搭建.md)。每次怎么导入见 [导入手机.md](skills/preservation-reminder/导入手机.md)。
+**续保提醒还要在 iPhone 上装一次快捷指令「续保导入」**：在 iPhone 上打开 <https://www.icloud.com/shortcuts/63139aa1630e4e98b3f912ffc40d20c4>，点「添加快捷指令」。每次怎么导入见 [导入手机.md](skills/preservation-reminder/导入手机.md)；快捷指令怎么生成、改了怎么重发见 [docs/快捷指令搭建.md](docs/快捷指令搭建.md)。
 
 ## 开发
 
