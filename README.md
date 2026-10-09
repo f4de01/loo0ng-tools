@@ -6,7 +6,7 @@
 
 | skill | 做什么 |
 | --- | --- |
-| [preservation-reminder](skills/preservation-reminder/SKILL.md) | 续保提醒：读保全告知书、裁定书等 PDF，认出每项被冻结、查封、扣押的财产，记进同目录的保全底账 `保全期限.md`，按申请截止日（届满日前七日）倒推提醒时点，给出一段导入文本，到 iPhone 上由快捷指令建进提醒事项 |
+| [preservation-reminder](skills/preservation-reminder/SKILL.md) | 续保提醒：读保全告知书、裁定书等 PDF，认出每项被冻结、查封、扣押的财产，记进同目录的保全底账 `保全期限.md`，按申请截止日（届满日前七日，法院要求更早的取更早）倒推提醒时点，给出一段导入文本，到 iPhone 上由快捷指令建进提醒事项 |
 
 ## 安装
 

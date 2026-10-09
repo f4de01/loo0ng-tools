@@ -317,6 +317,60 @@ class RefuseTests(CliCase):
         self.assertRefused(self.run_cli("export", "--ledger", str(self.ledger), "--case", CASE2), "没有这些案号")
 
 
+class CourtLeadTests(CliCase):
+    """法院要求比法定七日更早提交（「到期前两周」）：截止日取更早的那天，识别码不变。"""
+
+    def test_lead_moves_deadline_title_notes_and_alerts(self):
+        out = self.ok(self.merge([dict(DEPOSIT, 提前天数="14")]))
+        b = self.payload(out)["batches"][0]
+        self.assertEqual(b["id"], "续保识别码：%s@2027-03-01" % CASE, "识别码仍是案号加届满日")
+        self.assertEqual(b["title"], "续保｜甲测试诉乙测试｜截止 2027-02-15")
+        self.assertIn("申请截止日：2027-02-15（法院要求届满前 14 日提交；法定为届满七日前，即 2027-02-22）", b["notes"])
+        self.assertEqual(b["alerts"][0], "2027-01-16 10:00")
+        self.assertEqual(b["alerts"][-1], "2027-02-08 17:00")
+        self.assertIn("2027-02-15（法院要求提前 14 日）", out)
+        self.assertIn("| 文书写明 | 14 |", self.ledger_text())
+
+    def test_lead_accepts_day_suffix_and_never_goes_below_seven(self):
+        self.ok(self.merge([dict(DEPOSIT, 提前天数="14天")]))
+        self.assertIn("| 14 |", self.ledger_text())
+        b = self.payload(self.ok(self.merge([dict(HOUSE, 提前天数="3")])))["batches"][0]
+        self.assertIn("截止 2029-02-23", b["title"], "比法定七日还晚的要求不算数")
+
+    def test_bad_lead_is_refused(self):
+        code, out, err = self.merge([dict(DEPOSIT, 提前天数="两周")])
+        self.assertEqual(code, 1)
+        self.assertIn("提前天数「两周」认不出", err)
+
+    def test_later_document_with_lead_rebuilds_same_batch(self):
+        self.ok(self.merge([DEPOSIT]))
+        data = self.payload(self.ok(self.merge([dict(DEPOSIT, 提前天数="14")])))
+        ident = "续保识别码：%s@2027-03-01" % CASE
+        self.assertEqual(data["void"], [ident], "标题与时点变了：手机上删旧重建")
+        self.assertEqual([b["id"] for b in data["batches"]], [ident])
+        out = self.ok(self.merge([dict(DEPOSIT, 提前天数="10")]))
+        self.assertIsNone(self.payload(out), "更晚的要求不压过更早的")
+
+    def test_past_court_deadline_but_not_legal_is_urgent(self):
+        # 届满 2026-10-20：法院要求截止 10-06 已过，法定截止 10-13 未到
+        out = self.ok(self.merge([dict(DEPOSIT, 届满日="2026-10-20", 提前天数="14")]))
+        self.assertIn("已过法院要求的申请截止日 2026-10-06，法定截止日 2026-10-13 还没到", out)
+        self.assertEqual(len(self.payload(out)["batches"][0]["alerts"]), 1)
+
+    def test_legacy_ledger_without_lead_column_is_upgraded(self):
+        self.ok(self.merge([DEPOSIT]))
+        text = self.ledger_text()
+        legacy = (text.replace(" 到期日来源 | 提前天数 |", " 到期日来源 |")
+                  .replace("|---|---|---|---|---|---|---|---|---|---|---|---|", "|---|---|---|---|---|---|---|---|---|---|---|")
+                  .replace("| 文书写明 |  |", "| 文书写明 |"))
+        self.assertNotIn("提前天数", legacy.split("| 案号")[1])
+        self.ledger.write_text(legacy, encoding="utf-8")
+        out = self.ok(self.merge([DEPOSIT]))
+        self.assertIsNone(self.payload(out), "补列不算这批变动")
+        self.assertIn("保全底账已写", out)
+        self.assertIn("| 到期日来源 | 提前天数 | 备注 |", self.ledger_text())
+
+
 class ExportTests(CliCase):
     def test_export_filters_by_case(self):
         self.ok(self.merge([DEPOSIT, dict(HOUSE, 案号=CASE2)]))

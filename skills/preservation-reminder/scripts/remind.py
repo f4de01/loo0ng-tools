@@ -12,7 +12,8 @@ merge   底账不在就新建；并入财产行，写回底账；回显摘要与
 export  不并新行，只把底账里缺的届满日推算补上；回显筛出的批（不给 --case 就是全部）。
         --replace 让手机先删掉同识别码的旧提醒再建，律师手改过当事人、财产之类之后用。
 
-提醒时点一律从申请截止日（届满日前七日）倒推：截止日前 30 天、前 7 天两档，每档 10:00、12:00、17:00。
+提醒时点一律从申请截止日倒推：截止日前 30 天、前 7 天两档，每档 10:00、12:00、17:00。申请截止日是
+届满日前七日（法定）；文书里法院要求更早提交（「到期前两周」）的，财产行填「提前天数」，按更早的那天算。
 
 退出码：0 跑到底；1 输入或底账不合法，整条拒绝，底账一字不动；2 用法错。
 """
@@ -34,8 +35,9 @@ TIER_TIMES = ((10, 0), (12, 0), (17, 0))
 SOURCE_STATED = "文书写明"
 SOURCE_INFERRED = "推算"
 
-COLUMNS = ("案号", "法院", "申请人", "被申请人", "财产", "类型", "实施日", "期限", "届满日", "到期日来源", "备注")
-ROW_KEYS = ("案号", "法院", "申请人", "被申请人", "财产", "类型", "实施日", "期限", "届满日")
+COLUMNS = ("案号", "法院", "申请人", "被申请人", "财产", "类型", "实施日", "期限", "届满日", "到期日来源", "提前天数", "备注")
+LEGACY_COLUMNS = tuple(c for c in COLUMNS if c != "提前天数")  # 加「提前天数」之前写的底账，照读，写回时补列
+ROW_KEYS = ("案号", "法院", "申请人", "被申请人", "财产", "类型", "实施日", "期限", "届满日", "提前天数")
 REQUIRED_ROW_KEYS = ("案号", "财产", "类型")
 
 # 类型 -> (月数, 依据, 回显时要注明的话)
@@ -69,12 +71,14 @@ LEDGER_PREAMBLE = (
     "- 推算出的届满日核对确认后，把「到期日来源」改成「文书写明」，提醒标题就不再带「推算待核」。",
     "- 要按实施日重新推算，清空这一行的「届满日」与「到期日来源」。",
     "- 「期限」只填文书写明的期限（如 1年、6个月）；空着就按类型推算。",
+    "- 「提前天数」只填法院要求的提前提交天数（如「到期前两周」填 14）；空着就按法定的届满七日前。",
     "- 不要改表头、不要在单元格里写竖线。",
     "",
 )
 
 DATE_RE = re.compile(r"^\s*(\d{4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?\s*$")
 PERIOD_RE = re.compile(r"^\s*(\d{1,3})\s*(年|个月|月)\s*$")
+LEAD_RE = re.compile(r"^\s*(\d{1,3})\s*(日|天)?\s*$")
 
 
 class Refuse(Exception):
@@ -123,8 +127,19 @@ def infer_expiry(start: _dt.date, months: int) -> _dt.date:
     return add_months(start, months) - _dt.timedelta(days=1)
 
 
-def filing_deadline(expiry: _dt.date) -> _dt.date:
-    return expiry - _dt.timedelta(days=FILING_LEAD_DAYS)
+def filing_deadline(expiry: _dt.date, lead: int = FILING_LEAD_DAYS) -> _dt.date:
+    """申请截止日：届满日前 lead 日。lead 不会小于法定的七日。"""
+    return expiry - _dt.timedelta(days=max(lead, FILING_LEAD_DAYS))
+
+
+def parse_lead(text: str, where: str) -> Optional[int]:
+    """提前天数 -> 整数天。空串返回 None。"""
+    if not text or not text.strip():
+        return None
+    m = LEAD_RE.match(text)
+    if not m or int(m.group(1)) == 0:
+        raise Refuse("%s：提前天数「%s」认不出，写成天数，如 14" % (where, text))
+    return int(m.group(1))
 
 
 # ---------------------------------------------------------------- 行
@@ -170,6 +185,8 @@ def check_row_cells(row: Dict[str, str], where: str) -> None:
         row[col] = d.isoformat() if d else ""
     months = parse_period(row["期限"], "%s「期限」" % where)
     row["期限"] = format_period(months) if months else ""
+    lead = parse_lead(row["提前天数"], "%s「提前天数」" % where)
+    row["提前天数"] = str(lead) if lead else ""
     row["类型"], _ = normalize_type(row["类型"], "%s「类型」" % where)
     if row["到期日来源"] not in ("", SOURCE_STATED, SOURCE_INFERRED):
         raise Refuse("%s：到期日来源只能是「%s」或「%s」" % (where, SOURCE_STATED, SOURCE_INFERRED))
@@ -211,10 +228,10 @@ def is_separator(cells: List[str]) -> bool:
     return all(re.fullmatch(r":?-{1,}:?", c) for c in cells) and bool(cells)
 
 
-def read_ledger(path: str) -> Tuple[List[str], List[Dict[str, str]], List[str]]:
-    """返回 (表前的行, 财产行, 表后的行)。文件不在就返回空底账。"""
+def read_ledger(path: str) -> Tuple[List[str], List[Dict[str, str]], List[str], bool]:
+    """返回 (表前的行, 财产行, 表后的行, 是否旧表头)。文件不在就返回空底账；旧表头的底账写回时补「提前天数」列。"""
     if not os.path.exists(path):
-        return list(LEDGER_PREAMBLE), [], []
+        return list(LEDGER_PREAMBLE), [], [], False
     with open(path, "r", encoding="utf-8-sig") as f:
         lines = f.read().splitlines()
     start = None
@@ -224,8 +241,8 @@ def read_ledger(path: str) -> Tuple[List[str], List[Dict[str, str]], List[str]]:
             break
     if start is None:
         raise Refuse("底账 %s 里找不到带「案号」「财产」表头的表" % path)
-    header = parse_table_line(lines[start])
-    if tuple(header) != COLUMNS:
+    header = tuple(parse_table_line(lines[start]))
+    if header not in (COLUMNS, LEGACY_COLUMNS):
         raise Refuse("底账表头被改过，应为：| %s |" % " | ".join(COLUMNS))
     end = start + 1
     if end < len(lines) and is_separator(parse_table_line(lines[end])):
@@ -234,15 +251,16 @@ def read_ledger(path: str) -> Tuple[List[str], List[Dict[str, str]], List[str]]:
     while end < len(lines) and lines[end].lstrip().startswith("|"):
         cells = parse_table_line(lines[end])
         where = "底账第 %d 行" % (end + 1)
-        if len(cells) != len(COLUMNS):
-            raise Refuse("%s：应有 %d 格，实有 %d 格（单元格里别写竖线）" % (where, len(COLUMNS), len(cells)))
-        row = dict(zip(COLUMNS, cells))
+        if len(cells) != len(header):
+            raise Refuse("%s：应有 %d 格，实有 %d 格（单元格里别写竖线）" % (where, len(header), len(cells)))
+        row = blank_row()
+        row.update(zip(header, cells))
         if not row["案号"] or not row["财产"]:
             raise Refuse("%s：案号与财产不能空" % where)
         check_row_cells(row, where)
         rows.append(row)
         end += 1
-    return lines[:start], rows, lines[end:]
+    return lines[:start], rows, lines[end:], header == LEGACY_COLUMNS
 
 
 def render_ledger(before: List[str], rows: List[Dict[str, str]], after: List[str]) -> str:
@@ -313,6 +331,8 @@ def merge_one(existing: Dict[str, str], incoming: Dict[str, str]) -> Optional[st
         if not existing[col] and incoming[col]:
             existing[col] = incoming[col]
     add_note(existing, incoming["备注"])
+    if incoming["提前天数"] and int(incoming["提前天数"]) > int(existing["提前天数"] or 0):
+        existing["提前天数"] = incoming["提前天数"]  # 法院要求取更早的，宁早勿晚
 
     new_date, old_date = incoming["届满日"], existing["届满日"]
     new_src, old_src = incoming["到期日来源"], existing["到期日来源"]
@@ -407,20 +427,35 @@ def parties(rows: List[Dict[str, str]]) -> str:
     return a or b or rows[0]["案号"]
 
 
+def lead_of(rows: List[Dict[str, str]]) -> int:
+    """一批的提前天数：法定七日与这批里法院要求的最大值，取更早的截止日。"""
+    return max([FILING_LEAD_DAYS] + [int(r["提前天数"]) for r in rows if r["提前天数"]])
+
+
+def deadline_of(key: Tuple[str, str], rows: List[Dict[str, str]]) -> _dt.date:
+    return filing_deadline(_dt.date.fromisoformat(key[1]), lead_of(rows))
+
+
+def deadline_basis(key: Tuple[str, str], rows: List[Dict[str, str]]) -> str:
+    lead = lead_of(rows)
+    if lead == FILING_LEAD_DAYS:
+        return "届满日前七日"
+    legal = filing_deadline(_dt.date.fromisoformat(key[1]))
+    return "法院要求届满前 %d 日提交；法定为届满七日前，即 %s" % (lead, legal.isoformat())
+
+
 def title_of(key: Tuple[str, str], rows: List[Dict[str, str]]) -> str:
-    deadline = filing_deadline(_dt.date.fromisoformat(key[1]))
-    t = "续保｜%s｜截止 %s" % (parties(rows), deadline.isoformat())
+    t = "续保｜%s｜截止 %s" % (parties(rows), deadline_of(key, rows).isoformat())
     return t + "｜推算待核" if is_inferred(rows) else t
 
 
 def notes_of(key: Tuple[str, str], rows: List[Dict[str, str]]) -> str:
-    expiry = _dt.date.fromisoformat(key[1])
     src = SOURCE_INFERRED + "，待核" if is_inferred(rows) else SOURCE_STATED
     lines = [
         "保全案号：%s" % key[0],
         "法院：%s" % (first(rows, "法院") or "（未写）"),
         "届满日：%s（%s）" % (key[1], src),
-        "申请截止日：%s（届满日前七日）" % filing_deadline(expiry).isoformat(),
+        "申请截止日：%s（%s）" % (deadline_of(key, rows).isoformat(), deadline_basis(key, rows)),
         "财产：",
     ]
     for i, r in enumerate(rows, start=1):
@@ -430,10 +465,13 @@ def notes_of(key: Tuple[str, str], rows: List[Dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
-def schedule(expiry: _dt.date, now: _dt.datetime) -> Tuple[str, List[_dt.datetime], int]:
-    """返回 (状态, 提醒时点, 跳过的时点数)。状态：正常 / 紧急 / 已过期限。"""
-    deadline = filing_deadline(expiry)
-    if now.date() > deadline:
+def schedule(expiry: _dt.date, now: _dt.datetime, lead: int = FILING_LEAD_DAYS) -> Tuple[str, List[_dt.datetime], int]:
+    """返回 (状态, 提醒时点, 跳过的时点数)。状态：正常 / 紧急 / 已过期限。
+
+    已过期限只看法定截止日；过了法院要求的截止日而法定截止日未到，按紧急建一条，不算已过。
+    """
+    deadline = filing_deadline(expiry, lead)
+    if now.date() > filing_deadline(expiry):
         return "已过期限", [], 0
     points = [
         _dt.datetime.combine(deadline - _dt.timedelta(days=d), _dt.time(h, m))
@@ -463,7 +501,7 @@ def render(rows: List[Dict[str, str]], selected: List[Tuple[str, str]], void: Li
     batches = group_batches(rows)
     out: List[str] = []
     payload_batches = []
-    urgent: List[str] = []
+    urgent: List[tuple] = []
     expired: List[str] = []
     controversy: List[str] = []
 
@@ -479,7 +517,8 @@ def render(rows: List[Dict[str, str]], selected: List[Tuple[str, str]], void: Li
     for key in selected:
         brows = batches[key]
         expiry = _dt.date.fromisoformat(key[1])
-        status, points, skipped = schedule(expiry, now)
+        lead = lead_of(brows)
+        status, points, skipped = schedule(expiry, now, lead)
         src = "推算待核" if is_inferred(brows) else SOURCE_STATED
         if status == "已过期限":
             shown = "不建"
@@ -489,7 +528,7 @@ def render(rows: List[Dict[str, str]], selected: List[Tuple[str, str]], void: Li
             if skipped and status == "正常":
                 shown += "（%d 条已过，跳过）" % skipped
             if status == "紧急":
-                urgent.append((key, points[0]))
+                urgent.append((key, brows, points[0]))
             payload_batches.append({
                 "id": identifier(key),
                 "title": title_of(key, brows),
@@ -498,7 +537,8 @@ def render(rows: List[Dict[str, str]], selected: List[Tuple[str, str]], void: Li
             })
         out.append("| %s |" % " | ".join(md_cell(x) for x in (
             key[0], parties(brows), "；".join(r["财产"] for r in brows), key[1],
-            filing_deadline(expiry).isoformat(), src, shown, status)))
+            deadline_of(key, brows).isoformat() + ("（法院要求提前 %d 日）" % lead if lead > FILING_LEAD_DAYS else ""),
+            src, shown, status)))
         for r in brows:
             if r["到期日来源"] == SOURCE_INFERRED and not r["期限"] and r["类型"] in PERIODS:
                 say = PERIODS[r["类型"]][2]
@@ -508,10 +548,16 @@ def render(rows: List[Dict[str, str]], selected: List[Tuple[str, str]], void: Li
         out.append("没有新增或变动的批。")
     out.append("")
 
-    for key, when in urgent:
-        out.append("**紧急：%s 截止 %s，前 30 天、前 7 天两档时点都已过去，只建一条 %s 的提醒；请今天就办续保。**"
-                   % (key[0], filing_deadline(_dt.date.fromisoformat(key[1])).isoformat(),
-                      when.strftime("%Y-%m-%d %H:%M")))
+    for key, brows, when in urgent:
+        deadline = deadline_of(key, brows)
+        legal = filing_deadline(_dt.date.fromisoformat(key[1]))
+        if now.date() > deadline:
+            out.append("**紧急：%s 已过法院要求的申请截止日 %s，法定截止日 %s 还没到，只建一条 %s 的提醒；"
+                       "请今天就联系承办法官递交续保申请。**"
+                       % (key[0], deadline.isoformat(), legal.isoformat(), when.strftime("%Y-%m-%d %H:%M")))
+        else:
+            out.append("**紧急：%s 截止 %s，前 30 天、前 7 天两档时点都已过去，只建一条 %s 的提醒；请今天就办续保。**"
+                       % (key[0], deadline.isoformat(), when.strftime("%Y-%m-%d %H:%M")))
     for key in expired:
         out.append("**已过法定申请期限：%s 届满日 %s，申请截止日 %s 已过，不建提醒。请律师自行判断（如问法院可否依职权续行）。**"
                    % (key[0], key[1], filing_deadline(_dt.date.fromisoformat(key[1])).isoformat()))
@@ -545,7 +591,7 @@ def render(rows: List[Dict[str, str]], selected: List[Tuple[str, str]], void: Li
 # ---------------------------------------------------------------- 命令
 
 # 进得了提醒标题与备注的列；只改了「期限」「备注」不算这一批变动
-REMINDER_COLUMNS = ("案号", "法院", "申请人", "被申请人", "财产", "类型", "实施日", "届满日", "到期日来源")
+REMINDER_COLUMNS = ("案号", "法院", "申请人", "被申请人", "财产", "类型", "实施日", "届满日", "到期日来源", "提前天数")
 
 
 def snapshot(rows: List[Dict[str, str]], cols=COLUMNS) -> Dict[Tuple[str, str], Tuple[str, ...]]:
@@ -554,7 +600,7 @@ def snapshot(rows: List[Dict[str, str]], cols=COLUMNS) -> Dict[Tuple[str, str], 
 
 def cmd_merge(args) -> str:
     incoming = load_rows(args.rows)
-    before, rows, after = read_ledger(args.ledger)
+    before, rows, after, legacy = read_ledger(args.ledger)
     old_batches = set(group_batches(rows))
     old = snapshot(rows)
     old_seen = snapshot(rows, REMINDER_COLUMNS)
@@ -576,7 +622,7 @@ def cmd_merge(args) -> str:
     new_batches = group_batches(rows)
     changed = [k for k in touched if k in new_batches]
     void = [identifier(k) for k in touched if k in old_batches]
-    wrote = old != snapshot(rows) or not os.path.exists(args.ledger)
+    wrote = old != snapshot(rows) or legacy or not os.path.exists(args.ledger)
     if wrote:
         write_ledger(args.ledger, render_ledger(before, rows, after))
     return render(rows, changed, void, notes, args.now, args.ledger, wrote)
@@ -585,14 +631,14 @@ def cmd_merge(args) -> str:
 def cmd_export(args) -> str:
     if not os.path.exists(args.ledger):
         raise Refuse("底账 %s 不在" % args.ledger)
-    before, rows, after = read_ledger(args.ledger)
+    before, rows, after, legacy = read_ledger(args.ledger)
     wanted = {normalize_key(c) for c in (args.case or [])}
     unknown = wanted - {normalize_key(r["案号"]) for r in rows}
     if unknown:
         raise Refuse("底账里没有这些案号：%s" % "、".join(sorted(unknown)))
     old = snapshot(rows)
     notes = infer_all(rows)
-    wrote = old != snapshot(rows)
+    wrote = old != snapshot(rows) or legacy
     if wrote:
         write_ledger(args.ledger, render_ledger(before, rows, after))
     selected = [k for k in group_batches(rows) if not wanted or normalize_key(k[0]) in wanted]
