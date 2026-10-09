@@ -1,0 +1,9 @@
+*.sh text eol=lf
+*.md text
+*.yaml text
+*.docx binary
+*.doc binary
+*.pdf binary
+.githooks/* text eol=lf
+*.jpg binary
+*.png binary
