@@ -13,10 +13,10 @@
 走 skills.sh，安装源须是公开仓库：
 
 ```bash
-npx skills@latest add f4de01/loo0ng-tools -a codex
+npx skills@latest add f4de01/loo0ng-tools -a codex -g
 ```
 
-用 Claude Code 就把 `-a codex` 换成 `-a claude-code`。机器上要有 Python 3.9 以上，不用另装任何包。
+用 Claude Code 就把 `-a codex` 换成 `-a claude-code`。`-g` 装到用户目录，在哪个目录开会话都能用；不带它只装进当前目录。装完要开新会话才认得。机器上要有 Python 3.9 以上，不用另装任何包。
 
 用的时候给出 PDF，说一句「给这几份文书做续保提醒」，agent 会自己调用 skill；想点名就在 Codex 里写 `$xubao`，Claude Code 里输 `/xubao`。
 
