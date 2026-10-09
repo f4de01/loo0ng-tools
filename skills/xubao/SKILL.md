@@ -1,7 +1,6 @@
 ---
 name: xubao
-description: "续保提醒：读保全告知书、裁定书等 PDF，算出续保申请截止日，生成导入 iPhone 提醒事项的文本。"
-disable-model-invocation: true
+description: "续保提醒：律师给出保全告知书、裁定书等 PDF，要做续保提醒、把保全期限导进手机时用。读文书算出续保申请截止日，生成导入 iPhone 提醒事项的文本。"
 ---
 
 # 续保提醒

@@ -18,7 +18,7 @@ npx skills@latest add f4de01/loo0ng-tools -a codex
 
 用 Claude Code 就把 `-a codex` 换成 `-a claude-code`。机器上要有 Python 3.9 以上，不用另装任何包。
 
-本仓的 skill 只在点名时调用，不会被一句相近的话自动带起：Codex 里写 `$xubao`（或用 `/skills` 挑），Claude Code 里输 `/xubao`，后面接上要它做的事和 PDF。
+用的时候给出 PDF，说一句「给这几份文书做续保提醒」，agent 会自己调用 skill；想点名就在 Codex 里写 `$xubao`，Claude Code 里输 `/xubao`。
 
 **续保提醒还要在 iPhone 上装一次快捷指令「续保导入」**：在 iPhone 上打开 <https://www.icloud.com/shortcuts/63139aa1630e4e98b3f912ffc40d20c4>，点「添加快捷指令」。每次怎么导入见 [导入手机.md](skills/xubao/导入手机.md)；快捷指令怎么生成、改了怎么重发见 [docs/快捷指令搭建.md](docs/快捷指令搭建.md)。
 
