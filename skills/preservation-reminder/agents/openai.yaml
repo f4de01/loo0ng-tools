@@ -1,3 +1,6 @@
 interface:
   display_name: "preservation-reminder"
   short_description: "续保提醒：读保全文书认财产，记进保全底账，按申请截止日倒推，给出导入 iPhone 提醒事项的文本"
+
+policy:
+  allow_implicit_invocation: false

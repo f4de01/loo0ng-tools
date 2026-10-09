@@ -44,6 +44,16 @@ class LayoutTests(unittest.TestCase):
             self.assertRegex(head, r"(?m)^name: %s$" % re.escape(skill.name))
             self.assertRegex(head, r"(?m)^description: \S")
 
+    def test_explicit_only_switch_is_set_on_both_agents(self):
+        """只在点名时调用：Claude Code 看 SKILL.md 的 disable-model-invocation，Codex 看 openai.yaml 的 policy，两边要一致。"""
+        for skill in SKILLS:
+            head = (skill / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[1]
+            claude_off = re.search(r"(?m)^disable-model-invocation: true$", head) is not None
+            yaml = skill / "agents" / "openai.yaml"
+            codex_off = yaml.exists() and re.search(
+                r"(?m)^policy:\n\s+allow_implicit_invocation: false$", yaml.read_text(encoding="utf-8")) is not None
+            self.assertEqual(claude_off, codex_off, "%s：两边的自动调用开关不一致" % skill.name)
+
     def test_readme_links_every_skill(self):
         readme = (REPO / "README.md").read_text(encoding="utf-8")
         for skill in SKILLS:
