@@ -42,3 +42,7 @@ python -m unittest discover -s tests/check-text -p "test_*.py"
 ```
 
 测试只用合成件。`tests/preservation-reminder/fixtures/` 里的两份假告知书（文字版、扫描版）由同目录的 `make_fixtures.py` 生成，那个脚本要 PyMuPDF，只在开发机上跑；测试本身只用标准库。
+
+## 许可
+
+代码与文档按 [MIT](LICENSE) 授权。合成测试 PDF 里嵌入的字体子集不在其内，范围说明在 `LICENSE` 末尾。
