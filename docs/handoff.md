@@ -62,7 +62,7 @@ loo0ng-skills 是案件图工作台（破产先行，诉讼、执行等案件图
 ## 新仓第一批
 
 - 已有：`AGENTS.md`、`CLAUDE.md`、`CONTEXT.md`、本文、`docs/adr/0001`。
-- 待做：根 `README.md`；从 loo0ng-skills 拷 `scripts/check-text.sh` 与 `scripts/privacy-check.py`、`.githooks/`（裁掉跟图和路由相关的守门，留案号、案件目录路径、手机号、身份证、统一社会信用代码五类正则）；`skills/preservation-reminder/`；合成测试件（自己编的假告知书 PDF，文字版与扫描版各一，不用任何真件）。
+- 待做：根 `README.md`；从 loo0ng-skills 拷 `.gitattributes`（`*.sh` 与 `.githooks/*` 固定 LF，须先于脚本进仓）、`scripts/check-text.sh` 与 `scripts/privacy-check.py`、`.githooks/`（裁掉跟图和路由相关的守门，留案号、案件目录路径、手机号、身份证、统一社会信用代码五类正则）；`skills/preservation-reminder/`；合成测试件（自己编的假告知书 PDF，文字版与扫描版各一，不用任何真件）。
 - 安装走 skills.sh，所以上 GitHub 必须是公开仓库 `f4de01/loo0ng-tools`；空仓不推，第一件能装了再建远端。
 
 ## 以后再说
