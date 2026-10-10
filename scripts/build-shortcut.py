@@ -11,10 +11,11 @@ iOS 15 起导入不了，要在 Mac 上用系统自带的 shortcuts sign 签一�
 动作参数照 Apple ToolKit 导出的参数表与公开的快捷指令样本写，Apple 没有文档；改了要在真机上走一遍
 docs/快捷指令搭建.md 的「试跑」。逻辑与导入文本格式以 skills/xubao/FORMAT.md 为准：
 
-  1. 读剪贴板，取词典；取不到 format 就提示「剪贴板里不是导入文本」，不是 1 就提示「请更新快捷指令」。
-  2. 找出标题以「续保｜」开头的全部提醒，逐条读备注最后一行的识别码：
-     在 void 里的收进待删，其余收进已有。待删的一次删掉（系统会确认一次）。
-  3. 逐批：识别码在已有里就跳过；不在就按 alerts 每个时点新建一条提醒（列表取导入文本的 list）。
+  1. 读剪贴板，取词典；取不到 format 就提示「剪贴板里不是导入文本」，不是 2 就提示「请更新快捷指令」。
+  2. 找出标题以「续保｜」开头的全部提醒（续保提醒与它的子提醒都在内，子提醒的备注就是识别码一行），
+     逐条读备注最后一行的识别码：在 void 里的收进待删，其余收进已有。待删的一次删掉（系统会确认一次）。
+  3. 逐批：识别码在已有里就跳过；不在就建一条不设时间的续保提醒（列表取导入文本的 list），
+     再按 alerts 每个响铃点在它下面建一个子提醒（普通提醒，不开「紧急」）。
   4. 通知新建几批、跳过几批。
 
 查重不靠「查找提醒事项」按备注过滤：参数表里提醒事项能过滤的属性没有备注，读备注只能靠「获取提醒事项的详细信息」。
@@ -38,7 +39,7 @@ import urllib.request
 import uuid
 
 NAME = "续保导入"
-FORMAT_VERSION = "1"
+FORMAT_VERSION = "2"
 TITLE_PREFIX = "续保｜"
 ID_PREFIX = "续保识别码："
 HUBSIGN_URL = "https://hubsign.routinehub.services/sign"
@@ -157,7 +158,7 @@ def build_actions():
     b = Builder()
 
     # 1. 读剪贴板，取词典，守格式号
-    b.comment("续保导入：读剪贴板里的导入文本（由续保提醒 skill 生成），建进提醒事项。\n1. 取词典，格式号不是 1 就停。")
+    b.comment("续保导入：读剪贴板里的导入文本（由续保提醒 skill 生成），建进提醒事项。\n1. 取词典，格式号不是 %s 就停。" % FORMAT_VERSION)
     clip = b.act("getclipboard")
     dic = b.act("detect.dictionary", {"WFInput": attach(output(clip, "Clipboard"))})
     D = output(dic, "Dictionary")
@@ -207,7 +208,7 @@ def build_actions():
     HAVE = output(have, "Combined Text")
 
     # 3. 逐批新建
-    b.comment("3. 逐批：识别码已有就跳过；没有就按 alerts 每个时点建一条提醒。")
+    b.comment("3. 逐批：识别码已有就跳过；没有就建一条续保提醒，按 alerts 每个响铃点在它下面建一个子提醒。")
     batches = b.get_key(D, "batches")
     outer, batch = b.repeat_each(output(batches, "Dictionary Value"))
     bid = b.get_key(batch, "id")
@@ -218,16 +219,26 @@ def build_actions():
     g = b.if_(HAVE, IF_CONTAINS, text(ID))
     b.append_var("跳过", TITLE)
     b.otherwise(g)
-    inner, moment = b.repeat_each(output(alerts, "Dictionary Value"), depth=2)
-    when = b.act("detect.date", {"WFInput": attach(moment)})
-    b.act("addnewreminder", {
+    parent = b.act("addnewreminder", {
         "WFCalendarItemTitle": text(TITLE),
+        "WFCalendarDescriptor": attach(dict_value(D, "list")),
+        "WFAlertEnabled": "No Alert",
+        "WFCalendarItemNotes": text(NOTE),
+    })
+    b.set_var("续保提醒", output(parent, "New Reminder"))
+    inner, point = b.repeat_each(output(alerts, "Dictionary Value"), depth=2)
+    at = b.get_key(point, "at")
+    ptitle = b.get_key(point, "title")
+    when = b.act("detect.date", {"WFInput": attach(output(at, "Dictionary Value"))})
+    b.act("addnewreminder", {
+        "WFCalendarItemTitle": text(output(ptitle, "Dictionary Value")),
         "WFCalendarDescriptor": attach(dict_value(D, "list")),
         "WFAlertEnabled": "Alert",
         "WFAlertCondition": "At Time",
         # 日期格子是可输入文字的格子，要写成「文本里插变量」；直接挂变量，真机报「提供的提醒时间无效」
         "WFAlertCustomTime": text(output(when, "Dates")),
-        "WFCalendarItemNotes": text(NOTE),
+        "WFParentTask": attach(named("续保提醒")),
+        "WFCalendarItemNotes": text(ID),
     })
     b.end_repeat(inner)
     b.append_var("新建", TITLE)

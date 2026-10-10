@@ -14,6 +14,7 @@ export  不并新行，只把底账里缺的届满日推算补上；回显筛出
 
 提醒时点一律从申请截止日倒推：截止日前 30 天、前 7 天两档，每档 10:00、12:00、17:00。申请截止日是
 届满日前七日（法定）；文书里法院要求更早提交（「到期前两周」）的，财产行填「提前天数」，按更早的那天算。
+一批在手机上是一条续保提醒，每个时点是它下面的一个响铃点，都是普通提醒，不穿透静音与专注模式。
 
 退出码：0 跑到底；1 输入或底账不合法，整条拒绝，底账一字不动；2 用法错。
 """
@@ -26,7 +27,7 @@ import sys
 import unicodedata
 from typing import Dict, List, Optional, Tuple
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 REMINDER_LIST = "续保"
 FILING_LEAD_DAYS = 7  # 保全规定第十八条：届满七日前提出续行申请
 TIER_DAYS = (30, 7)  # 截止日前 30 天、前 7 天
@@ -465,6 +466,15 @@ def notes_of(key: Tuple[str, str], rows: List[Dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
+def ring_points(title: str, status: str, deadline: _dt.date, points: List[_dt.datetime]) -> List[Dict[str, str]]:
+    """一批的响铃点：时刻与标题；标题是批标题后缀档位，通知里看得出哪一批、还剩哪一档。"""
+    out = []
+    for p in points:
+        tier = "今天" if status == "紧急" else "前 %d 天" % (deadline - p.date()).days
+        out.append({"at": p.strftime("%Y-%m-%d %H:%M"), "title": "%s｜%s" % (title, tier)})
+    return out
+
+
 def schedule(expiry: _dt.date, now: _dt.datetime, lead: int = FILING_LEAD_DAYS) -> Tuple[str, List[_dt.datetime], int]:
     """返回 (状态, 提醒时点, 跳过的时点数)。状态：正常 / 紧急 / 已过期限。
 
@@ -524,16 +534,17 @@ def render(rows: List[Dict[str, str]], selected: List[Tuple[str, str]], void: Li
             shown = "不建"
             expired.append(key)
         else:
-            shown = "%d 条，首条 %s" % (len(points), points[0].strftime("%Y-%m-%d %H:%M"))
+            shown = "%d 个响铃点，首个 %s" % (len(points), points[0].strftime("%Y-%m-%d %H:%M"))
             if skipped and status == "正常":
-                shown += "（%d 条已过，跳过）" % skipped
+                shown += "（%d 个已过，跳过）" % skipped
             if status == "紧急":
                 urgent.append((key, brows, points[0]))
+            title = title_of(key, brows)
             payload_batches.append({
                 "id": identifier(key),
-                "title": title_of(key, brows),
+                "title": title,
                 "notes": notes_of(key, brows),
-                "alerts": [p.strftime("%Y-%m-%d %H:%M") for p in points],
+                "alerts": ring_points(title, status, deadline_of(key, brows), points),
             })
         out.append("| %s |" % " | ".join(md_cell(x) for x in (
             key[0], parties(brows), "；".join(r["财产"] for r in brows), key[1],
@@ -552,11 +563,11 @@ def render(rows: List[Dict[str, str]], selected: List[Tuple[str, str]], void: Li
         deadline = deadline_of(key, brows)
         legal = filing_deadline(_dt.date.fromisoformat(key[1]))
         if now.date() > deadline:
-            out.append("**紧急：%s 已过法院要求的申请截止日 %s，法定截止日 %s 还没到，只建一条 %s 的提醒；"
+            out.append("**紧急：%s 已过法院要求的申请截止日 %s，法定截止日 %s 还没到，只建一个 %s 的响铃点；"
                        "请今天就联系承办法官递交续保申请。**"
                        % (key[0], deadline.isoformat(), legal.isoformat(), when.strftime("%Y-%m-%d %H:%M")))
         else:
-            out.append("**紧急：%s 截止 %s，前 30 天、前 7 天两档时点都已过去，只建一条 %s 的提醒；请今天就办续保。**"
+            out.append("**紧急：%s 截止 %s，前 30 天、前 7 天两档时点都已过去，只建一个 %s 的响铃点；请今天就办续保。**"
                        % (key[0], deadline.isoformat(), when.strftime("%Y-%m-%d %H:%M")))
     for key in expired:
         out.append("**已过法定申请期限：%s 届满日 %s，申请截止日 %s 已过，不建提醒。请律师自行判断（如问法院可否依职权续行）。**"

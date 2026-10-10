@@ -96,6 +96,11 @@ class Units(unittest.TestCase):
         self.assertEqual(status, "紧急")
         self.assertEqual(points, [self.now("2026-10-08 10:00")])
 
+    def test_ring_points_late_batch_says_today(self):
+        at = self.now("2026-10-08 10:00")
+        self.assertEqual(self.m.ring_points("续保｜甲诉乙｜截止 2026-10-08", "紧急", at.date(), [at]),
+                         [{"at": "2026-10-08 10:00", "title": "续保｜甲诉乙｜截止 2026-10-08｜今天"}])
+
     def test_schedule_expired(self):
         status, points, _ = self.m.schedule(dt.date(2026, 10, 14), self.now(NOW))
         self.assertEqual((status, points), ("已过期限", []))
@@ -138,13 +143,17 @@ class MergeTests(CliCase):
     def test_first_run_writes_ledger_and_three_batches(self):
         out = self.ok(self.merge([DEPOSIT, HOUSE, CAR]))
         data = self.payload(out)
-        self.assertEqual((data["format"], data["list"], data["void"]), (1, "续保", []))
+        self.assertEqual((data["format"], data["list"], data["void"]), (2, "续保", []))
         ids = [b["id"] for b in data["batches"]]
         self.assertEqual(ids, ["续保识别码：%s@2027-03-01" % CASE, "续保识别码：%s@2029-03-02" % CASE,
                                "续保识别码：%s@2028-03-04" % CASE])
         dep, _, car = data["batches"]
         self.assertEqual(dep["title"], "续保｜甲测试诉乙测试｜截止 2027-02-22")
-        self.assertEqual(len(dep["alerts"]), 6)
+        self.assertEqual([a["at"] for a in dep["alerts"]], [
+            "2027-01-23 10:00", "2027-01-23 12:00", "2027-01-23 17:00",
+            "2027-02-15 10:00", "2027-02-15 12:00", "2027-02-15 17:00"])
+        self.assertEqual(dep["alerts"][0]["title"], dep["title"] + "｜前 30 天", "响铃点标题看得出哪一批、哪一档")
+        self.assertEqual(dep["alerts"][-1]["title"], dep["title"] + "｜前 7 天")
         self.assertTrue(dep["notes"].endswith(dep["id"]), "识别码在备注最后一行")
         self.assertIn("法院：测试市测试区人民法院", dep["notes"])
         self.assertTrue(car["title"].endswith("｜推算待核"))
@@ -263,7 +272,8 @@ class MergeTests(CliCase):
     def test_urgent_batch_warns(self):
         out = self.ok(self.merge([dict(DEPOSIT, 届满日="2026-10-19")]))
         self.assertIn("**紧急", out)
-        self.assertEqual(len(self.payload(out)["batches"][0]["alerts"]), 1)
+        b = self.payload(out)["batches"][0]
+        self.assertEqual(b["alerts"], [{"at": "2026-10-08 21:15", "title": b["title"] + "｜今天"}])
 
     def test_text_outside_table_is_kept(self):
         self.ok(self.merge([DEPOSIT]))
@@ -326,8 +336,9 @@ class CourtLeadTests(CliCase):
         self.assertEqual(b["id"], "续保识别码：%s@2027-03-01" % CASE, "识别码仍是案号加届满日")
         self.assertEqual(b["title"], "续保｜甲测试诉乙测试｜截止 2027-02-15")
         self.assertIn("申请截止日：2027-02-15（法院要求届满前 14 日提交；法定为届满七日前，即 2027-02-22）", b["notes"])
-        self.assertEqual(b["alerts"][0], "2027-01-16 10:00")
-        self.assertEqual(b["alerts"][-1], "2027-02-08 17:00")
+        self.assertEqual(b["alerts"][0]["at"], "2027-01-16 10:00")
+        self.assertEqual(b["alerts"][-1]["at"], "2027-02-08 17:00")
+        self.assertEqual(b["alerts"][0]["title"], b["title"] + "｜前 30 天", "档位按申请截止日算")
         self.assertIn("2027-02-15（法院要求提前 14 日）", out)
         self.assertIn("| 文书写明 | 14 |", self.ledger_text())
 
