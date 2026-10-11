@@ -12,13 +12,16 @@ iOS 15 起导入不了，要在 Mac 上用系统自带的 shortcuts sign 签一�
 docs/快捷指令搭建.md 的「试跑」。逻辑与导入文本格式以 skills/xubao/FORMAT.md 为准：
 
   1. 读剪贴板，取词典；取不到 format 就提示「剪贴板里不是导入文本」，不是 2 就提示「请更新快捷指令」。
-  2. 找出标题以「续保｜」开头的全部提醒（续保提醒与它的子提醒都在内，子提醒的备注就是识别码一行），
-     逐条读备注最后一行的识别码：在 void 里的收进待删，其余收进已有。待删的一次删掉（系统会确认一次）。
-  3. 逐批：识别码在已有里就跳过；不在就建一条不设时间的续保提醒（列表取导入文本的 list），
-     再按 alerts 每个响铃点在它下面建一个子提醒（普通提醒，不开「紧急」）。
-  4. 通知新建几批、跳过几批。
+  2. 找出标题以「续保｜」开头的全部提醒，逐条读备注最后一行的识别码：在 void 里的收进待删，其余收进已有
+     （一条提醒一行，同一识别码出现几次就有几行）。待删的一次删掉（系统会确认一次）。
+  3. 逐批：数已有里这批识别码出现了几次，不少于这批的响铃点数就跳过；少于的，命中过的那几条算半截批
+     （上次导入中途失败留下的），收进待删重建；然后按 alerts 每个响铃点建一条平铺的普通提醒：标题用响铃点的，
+     时间用 at，备注用整批的（末行识别码），列表取导入文本的 list，不开「紧急」，不挂父提醒事项。
+  4. 半截批的旧条一次删掉（系统会确认一次），通知新建几批、跳过几批。
 
-查重不靠「查找提醒事项」按备注过滤：参数表里提醒事项能过滤的属性没有备注，读备注只能靠「获取提醒事项的详细信息」。
+不用子提醒：iOS 26.6 起「父提醒事项」参数在真机上报「账户不支持子任务」，26.5 正常；律师迟早都会升级，
+所以一批平铺几条。查重不靠「查找提醒事项」按备注过滤：参数表里提醒事项能过滤的属性没有备注，读备注只能靠
+「获取提醒事项的详细信息」。数次数用「匹配文本」，模式写成 \\Q识别码\\E，识别码里的字符一律按字面匹配。
 
 用法：
   python scripts/build-shortcut.py [--out <目录>] [--sign]
@@ -107,12 +110,15 @@ class Builder:
         return self.add(ident, params, str(uuid.uuid4()).upper())
 
     # 控制流：返回分组号，调 otherwise / end 收尾
-    def if_(self, ref, condition, string=None):
+    def if_(self, ref, condition, string=None, number=None):
+        """string 是文本条件的比较值，number 是数字条件的比较值。"""
         group = str(uuid.uuid4()).upper()
         params = {"GroupingIdentifier": group, "WFControlFlowMode": 0, "WFCondition": condition,
                   "WFInput": cond_input(ref)}
         if string is not None:
             params["WFConditionalActionString"] = string
+        if number is not None:
+            params["WFNumberValue"] = number
         self.add("conditional", params)
         return group
 
@@ -151,7 +157,22 @@ class Builder:
                                            "WFInput": attach(ref)})
 
 
-IF_CONTAINS, IF_IS_NOT, IF_BEGINS, IF_HAS_VALUE, IF_NO_VALUE = 99, 5, 8, 100, 101
+IF_IS, IF_IS_NOT, IF_GREATER, IF_BEGINS, IF_CONTAINS, IF_HAS_VALUE, IF_NO_VALUE = 4, 5, 2, 8, 99, 100, 101
+
+
+def title_filter():
+    """「查找提醒事项」的过滤：标题以「续保｜」开头。"""
+    return {
+        "Value": {
+            "WFActionParameterFilterPrefix": 1,
+            "WFContentPredicateBoundedDate": False,
+            "WFActionParameterFilterTemplates": [{
+                "Operator": 8, "Property": "Title", "Removable": True,
+                "Values": {"String": TITLE_PREFIX, "Unit": 4},
+            }],
+        },
+        "WFSerializationType": "WFContentPredicateTableTemplate",
+    }
 
 
 def build_actions():
@@ -176,17 +197,7 @@ def build_actions():
     b.comment("2. 扫一遍标题以「续保｜」开头的提醒，读备注最后一行的识别码：在 void 里的删掉，其余记为已有。")
     void = b.get_key(D, "void")
     void_text = b.act("text.combine", {"text": attach(output(void, "Dictionary Value")), "WFTextSeparator": "New Lines"})
-    found = b.act("filter.reminders", {"WFContentItemFilter": {
-        "Value": {
-            "WFActionParameterFilterPrefix": 1,
-            "WFContentPredicateBoundedDate": False,
-            "WFActionParameterFilterTemplates": [{
-                "Operator": 8, "Property": "Title", "Removable": True,
-                "Values": {"String": TITLE_PREFIX, "Unit": 4},
-            }],
-        },
-        "WFSerializationType": "WFContentPredicateTableTemplate",
-    }})
+    found = b.act("filter.reminders", {"WFContentItemFilter": title_filter()})
     loop, reminder = b.repeat_each(output(found, "Reminders"))
     notes = b.act("properties.reminders", {"WFContentItemPropertyName": "Notes", "WFInput": attach(reminder)})
     lines = b.act("text.split", {"text": attach(output(notes, "Notes")), "WFTextSeparator": "New Lines"})
@@ -208,25 +219,41 @@ def build_actions():
     HAVE = output(have, "Combined Text")
 
     # 3. 逐批新建
-    b.comment("3. 逐批：识别码已有就跳过；没有就建一条续保提醒，按 alerts 每个响铃点在它下面建一个子提醒。")
+    b.comment("3. 逐批：已有里这批识别码的次数不少于响铃点数就跳过；少于的算半截批，旧条收进待删，"
+              "再按 alerts 每个响铃点建一条平铺的普通提醒（不挂父提醒事项：iOS 26.6 起那个参数报错）。")
     batches = b.get_key(D, "batches")
     outer, batch = b.repeat_each(output(batches, "Dictionary Value"))
     bid = b.get_key(batch, "id")
     title = b.get_key(batch, "title")
     note = b.get_key(batch, "notes")
     alerts = b.get_key(batch, "alerts")
-    ID, TITLE, NOTE = (output(u, "Dictionary Value") for u in (bid, title, note))
-    g = b.if_(HAVE, IF_CONTAINS, text(ID))
-    b.append_var("跳过", TITLE)
-    b.otherwise(g)
-    parent = b.act("addnewreminder", {
-        "WFCalendarItemTitle": text(TITLE),
-        "WFCalendarDescriptor": attach(dict_value(D, "list")),
-        "WFAlertEnabled": "No Alert",
-        "WFCalendarItemNotes": text(NOTE),
-    })
-    b.set_var("续保提醒", output(parent, "New Reminder"))
-    inner, point = b.repeat_each(output(alerts, "Dictionary Value"), depth=2)
+    ID, TITLE, NOTE, ALERTS = (output(u, "Dictionary Value") for u in (bid, title, note, alerts))
+    # 已有里这批识别码出现几次：匹配文本，模式 \Q…\E 让识别码按字面匹配
+    hits = b.act("text.match", {"text": attach(HAVE), "WFMatchTextPattern": text("\\Q", ID, "\\E"),
+                                "WFMatchTextCaseSensitive": True})
+    have_n = b.act("count", {"WFCountType": "Items", "Input": attach(output(hits, "Matches")),
+                             "WFInput": attach(output(hits, "Matches"))})
+    want_n = b.act("count", {"WFCountType": "Items", "Input": attach(ALERTS), "WFInput": attach(ALERTS)})
+    # 缺几条 = 响铃点数 - 已有次数；数字格子同日期格子，写成「文本里插变量」
+    missing = b.act("math", {"WFInput": attach(output(want_n, "Count")), "WFMathOperation": "-",
+                             "WFMathOperand": text(output(have_n, "Count"))})
+    g = b.if_(output(missing, "Calculation Result"), IF_GREATER, number=0)
+    # 半截批：命中过（次数不是 0）就把这批的旧条找出来收进待删
+    have_text = b.act("gettext", {"WFTextActionText": text(output(have_n, "Count"))})
+    g_half = b.if_(output(have_text, "Text"), IF_IS_NOT, "0")
+    b.append_var("半截", TITLE)
+    again = b.act("filter.reminders", {"WFContentItemFilter": title_filter()})
+    loop2, old = b.repeat_each(output(again, "Reminders"), depth=2)
+    notes2 = b.act("properties.reminders", {"WFContentItemPropertyName": "Notes", "WFInput": attach(old)})
+    lines2 = b.act("text.split", {"text": attach(output(notes2, "Notes")), "WFTextSeparator": "New Lines"})
+    last2 = b.act("getitemfromlist", {"WFItemSpecifier": "Last Item", "WFInput": attach(output(lines2, "Split Text"))})
+    g_same = b.if_(output(last2, "Item from List"), IF_IS, text(ID))
+    b.append_var("待删半截", old)
+    b.end_if(g_same)
+    b.end_repeat(loop2)
+    b.end_if(g_half)
+    # 平铺新建
+    inner, point = b.repeat_each(ALERTS, depth=2)
     at = b.get_key(point, "at")
     ptitle = b.get_key(point, "title")
     when = b.act("detect.date", {"WFInput": attach(output(at, "Dictionary Value"))})
@@ -237,21 +264,27 @@ def build_actions():
         "WFAlertCondition": "At Time",
         # 日期格子是可输入文字的格子，要写成「文本里插变量」；直接挂变量，真机报「提供的提醒时间无效」
         "WFAlertCustomTime": text(output(when, "Dates")),
-        "WFParentTask": attach(named("续保提醒")),
-        "WFCalendarItemNotes": text(ID),
+        "WFCalendarItemNotes": text(NOTE),
     })
     b.end_repeat(inner)
     b.append_var("新建", TITLE)
+    b.otherwise(g)
+    b.append_var("跳过", TITLE)
     b.end_if(g)
     b.end_repeat(outer)
 
-    # 4. 通知
-    b.comment("4. 通知新建几批、跳过几批。")
+    # 4. 删半截批的旧条，通知
+    b.comment("4. 半截批的旧条一次删掉，再通知新建几批、跳过几批。")
+    g = b.if_(named("待删半截"), IF_HAS_VALUE)
+    b.add("removereminders", {"WFInputReminders": attach(named("待删半截"))})
+    b.end_if(g)
     # 「计数」的输入键：参数表写 Input，旧导出写 WFInput，两个都给
     made = b.act("count", {"WFCountType": "Items", "Input": attach(named("新建")), "WFInput": attach(named("新建"))})
     skipped = b.act("count", {"WFCountType": "Items", "Input": attach(named("跳过")), "WFInput": attach(named("跳过"))})
+    half = b.act("count", {"WFCountType": "Items", "Input": attach(named("半截")), "WFInput": attach(named("半截"))})
     b.add("notification", {"WFNotificationActionTitle": NAME, "WFNotificationActionBody": text(
-        "新建 ", output(made, "Count"), " 批，跳过 ", output(skipped, "Count"), " 批（已有）")})
+        "新建 ", output(made, "Count"), " 批（其中重建上次没导完的 ", output(half, "Count"), " 批），跳过 ",
+        output(skipped, "Count"), " 批（已有）")})
     return b.actions
 
 

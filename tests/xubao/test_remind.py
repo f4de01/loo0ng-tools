@@ -64,27 +64,27 @@ class Units(unittest.TestCase):
     def now(self, text):
         return dt.datetime.strptime(text, "%Y-%m-%d %H:%M")
 
-    def test_schedule_two_tiers_three_times(self):
+    def test_schedule_two_tiers_two_times(self):
         status, points, skipped = self.m.schedule(dt.date(2027, 3, 1), self.now(NOW))
         self.assertEqual(status, "正常")
         self.assertEqual(skipped, 0)
         self.assertEqual([p.strftime("%Y-%m-%d %H:%M") for p in points], [
-            "2027-01-23 10:00", "2027-01-23 12:00", "2027-01-23 17:00",
-            "2027-02-15 10:00", "2027-02-15 12:00", "2027-02-15 17:00"])
+            "2027-01-23 10:00", "2027-01-23 17:00",
+            "2027-02-15 10:00", "2027-02-15 17:00"])
 
     def test_schedule_skips_past_points(self):
         # 截止日 2026-10-29：前 30 天那一档已过
         status, points, skipped = self.m.schedule(dt.date(2026, 11, 5), self.now(NOW))
-        self.assertEqual((status, skipped, len(points)), ("正常", 3, 3))
+        self.assertEqual((status, skipped, len(points)), ("正常", 2, 2))
         status, points, skipped = self.m.schedule(dt.date(2026, 11, 5), self.now("2026-10-22 11:00"))
-        self.assertEqual((status, skipped), ("正常", 4))
-        self.assertEqual(points[0], self.now("2026-10-22 12:00"))
+        self.assertEqual((status, skipped), ("正常", 3))
+        self.assertEqual(points[0], self.now("2026-10-22 17:00"))
 
     def test_schedule_urgent_takes_next_slot_today(self):
         # 截止日 2026-10-12，前 7 天那档在 10-05，已过
         status, points, _ = self.m.schedule(dt.date(2026, 10, 19), self.now("2026-10-08 11:00"))
         self.assertEqual(status, "紧急")
-        self.assertEqual(points, [self.now("2026-10-08 12:00")])
+        self.assertEqual(points, [self.now("2026-10-08 17:00")])
 
     def test_schedule_urgent_after_last_slot(self):
         status, points, _ = self.m.schedule(dt.date(2026, 10, 19), self.now("2026-10-08 21:03"))
@@ -150,8 +150,8 @@ class MergeTests(CliCase):
         dep, _, car = data["batches"]
         self.assertEqual(dep["title"], "续保｜甲测试诉乙测试｜截止 2027-02-22")
         self.assertEqual([a["at"] for a in dep["alerts"]], [
-            "2027-01-23 10:00", "2027-01-23 12:00", "2027-01-23 17:00",
-            "2027-02-15 10:00", "2027-02-15 12:00", "2027-02-15 17:00"])
+            "2027-01-23 10:00", "2027-01-23 17:00",
+            "2027-02-15 10:00", "2027-02-15 17:00"])
         self.assertEqual(dep["alerts"][0]["title"], dep["title"] + "｜前 30 天", "响铃点标题看得出哪一批、哪一档")
         self.assertEqual(dep["alerts"][-1]["title"], dep["title"] + "｜前 7 天")
         self.assertTrue(dep["notes"].endswith(dep["id"]), "识别码在备注最后一行")
