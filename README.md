@@ -8,7 +8,13 @@
 | --- | --- |
 | [xubao](skills/xubao/SKILL.md) | 续保提醒：读保全告知书、裁定书等 PDF，把每项财产的保全期限记进同目录的 `保全期限.md`，算出续保申请截止日（届满七日前，法院要求更早的取更早），生成导入 iPhone 提醒事项的文本 |
 
-## 安装
+## 安装与使用
+
+一图看完从装 skill 到手机上响铃的全过程：[docs/一图流.png](docs/一图流.png)。
+
+![续保提醒一图流](docs/一图流.png)
+
+### 电脑上装 skill（一次）
 
 走 skills.sh，安装源须是公开仓库：
 
@@ -16,11 +22,15 @@
 npx skills@latest add f4de01/loo0ng-tools -a codex -g
 ```
 
-用 Claude Code 就把 `-a codex` 换成 `-a claude-code`。`-g` 装到用户目录，在哪个目录开会话都能用；不带它只装进当前目录。装完要开新会话才认得。机器上要有 Python 3.9 以上，不用另装任何包。
+用 Claude Code 就把 `-a codex` 换成 `-a claude-code`。`-g` 装到用户目录，在哪个目录开会话都能用；不带它只装进当前目录。装完要开新会话才认得。机器上要有 Python 3.9 以上，不用另装任何包。**skill 更新了也是再跑一遍这条命令**，然后开新会话。
 
-用的时候给出 PDF，说一句「给这几份文书做续保提醒」，agent 会自己调用 skill；想点名就在 Codex 里写 `$xubao`，Claude Code 里输 `/xubao`。
+### iPhone 上装快捷指令（一次）
 
-**续保提醒还要在 iPhone 上装一次快捷指令「续保导入」**：在 iPhone 上打开 <https://www.icloud.com/shortcuts/50a09fab8650481d8b1386d25b6901ab>，点「添加快捷指令」。每次怎么导入见 [导入手机.md](skills/xubao/导入手机.md)；快捷指令怎么生成、改了怎么重发见 [docs/快捷指令搭建.md](docs/快捷指令搭建.md)。
+在 iPhone 上打开 <https://www.icloud.com/shortcuts/50a09fab8650481d8b1386d25b6901ab>，点「添加快捷指令」；提醒事项里新建一个叫「续保」的列表。签名好的快捷指令文件也在 [dist/](dist/)，用「文件」打开同样能装。快捷指令怎么生成、改了怎么重发见 [docs/快捷指令搭建.md](docs/快捷指令搭建.md)。
+
+### 每次怎么用
+
+给出 PDF，说一句「给这几份文书做续保提醒」，agent 会自己调用 skill；想点名就在 Codex 里写 `$xubao`，Claude Code 里输 `/xubao`。回显末尾的 JSON 代码块整块复制到 iPhone 上，点快捷指令「续保导入」。「续保」列表里一批财产 4 条提醒：申请截止日前 30 天、前 7 天两档，每档 10:00 与 17:00 各一条；递交续保申请书后把这一批都勾掉。导入的每一步与报错怎么办见 [导入手机.md](skills/xubao/导入手机.md)。
 
 ## 开发
 
